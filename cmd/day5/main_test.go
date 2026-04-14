@@ -108,6 +108,9 @@ func Test_Part2_Main(t *testing.T) {
 		//
 		// The fix: track insertIndex as "first index where ranges[i].Lower >= incomingRange.Lower",
 		// defaulting to len(ranges) (append to end). One simple condition handles all cases.
+		//
+		// now back to me: ALSO LET ME SAY IN MY SHAME that none of the question was given to claude. I didnt even give him a real prompt, i just gave him
+		// my code and said "fix it" so i was close enough that it could see the bug lol.
 		{
 			name:           "insert at front when 2+ ranges already exist, then merge",
 			input:          "5-10\n15-20\n1-2\n1-6" + endSeq,
