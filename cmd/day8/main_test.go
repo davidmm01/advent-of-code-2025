@@ -21,21 +21,20 @@ func Test_straightLineDistance(t *testing.T) {
 			expected: float64(7.0710678118654755),
 		},
 		{
+			// got these test case from a google search
 			loc1: location{0, 0, 0},
 			loc2: location{1, 1, 1},
 			// ~1.732, so this looks good
 			expected: float64(1.7320508075688772),
 		},
 		{
-			loc1: location{431, 825, 988},
-			loc2: location{425, 690, 689},
-			// ~1.732, so this looks good
+			loc1:     location{431, 825, 988},
+			loc2:     location{425, 690, 689},
 			expected: float64(328.11888089532425),
 		},
 		{
-			loc1: location{431, 825, 988},
-			loc2: location{162, 817, 812},
-			// ~1.732, so this looks good
+			loc1:     location{431, 825, 988},
+			loc2:     location{162, 817, 812},
 			expected: float64(321.560258738545),
 		},
 	}

@@ -18,10 +18,15 @@ var input string
 const connectionsSample = 10
 const connectionsInput = 1000
 
-type comparison struct {
+type connection struct {
 	loc1     location
 	loc2     location
 	distance float64
+}
+
+type connections struct {
+	pending   []connection
+	completed []connection
 }
 
 type location struct {
@@ -86,7 +91,7 @@ func part1() {
 
 		allLocations = append(allLocations, loc)
 
-		circuitName := uuid.NewSHA1(namespace, []byte(fmt.Sprintf("%d,%d,%d", loc.x, loc.y, loc.z))).String()
+		circuitName := uuid.NewSHA1(namespace, []byte(fmt.Sprintf("%d,%d,%d", loc.x, loc.y, loc.z))).String()[:7]
 
 		allCircuits = append(allCircuits, circuitName)
 
@@ -98,68 +103,52 @@ func part1() {
 		circuitToLocation[circuitName] = []location{loc}
 	}
 
-	// fmt.Println("initial junction boxes")
-	// printJunctionBoxes(allLocations, junctionBoxes)
+	// first, begin by building up our starting list of pendingConnections
+	allConnections := connections{
+		pending:   []connection{},
+		completed: []connection{},
+	}
 
-	// first, begin by building up our starting list of comparisons
-	// for each location, find the closest location
-	comparisons := []comparison{}
-	for _, junctionBox1 := range junctionBoxes {
-		cmp := getComparison(junctionBox1, junctionBoxes)
-		comparisons = append(comparisons, cmp)
+	// for each location, find the closest connection
+	for _, junctionBox := range junctionBoxes {
+		con := getClosestConnection(junctionBox, junctionBoxes, allConnections)
+		allConnections.pending = append(allConnections.pending, con)
 	}
 
 	// sort in order of closest to furthest distance
-	sort.Slice(comparisons, func(i, j int) bool {
-		return comparisons[i].distance < comparisons[j].distance
+	sort.Slice(allConnections.pending, func(i, j int) bool {
+		return allConnections.pending[i].distance < allConnections.pending[j].distance
 	})
 
-	// fmt.Println("initial comparisons")
-	// printComparisons(comparisons)
-
-	connections := 0
+	connectionCount := 0
 	// Note: need to change this from connectionsSample (10) to connectionsInput (1000) when switching between sample.txt and input.txt as puzzle source
 	// - sample.txt: "After making the ten shortest connections" so we can check our output with the provided sample...
 	// - input.txt: 1000 connections as per instructions
-	for connections < connectionsSample {
-		fmt.Printf("--- new iteration, connections: %d\n", connections)
+	for connectionCount < connectionsSample {
 		// always start by looking at the closest comparison, since they are sorted from lowest to highest distance
-		cmp := comparisons[0]
-		// fmt.Println("actioning comparison:", cmp)
+		connToAction := allConnections.pending[0]
+		allCircuits, circuitToLocation = connectCircuits(allLocations, junctionBoxes, junctionBoxes[connToAction.loc1].circuit, junctionBoxes[connToAction.loc2].circuit, circuitToLocation, allCircuits)
+		allConnections = markConnectionActioned(connToAction, allConnections)
+		connectionCount += 1
 
-		// if this a new circuit that must be established
-		if junctionBoxes[cmp.loc1].circuit != junctionBoxes[cmp.loc2].circuit {
-			connections += 1
-			allCircuits = connectCircuits(allLocations, junctionBoxes, junctionBoxes[cmp.loc1].circuit, junctionBoxes[cmp.loc2].circuit, circuitToLocation, allCircuits)
-		}
-
-		// if it was already covered by a circuit, that is the same as already being connected, hence we will treat it the same
-		// as one that was just connected
-
-		// Determine the next newest closet connection for this JunctionBox, since it might be closer than other pre-calculated results
-		newCmp := getComparison(junctionBoxes[cmp.loc1], junctionBoxes)
-
-		// delete comparisons[0] since it has been handled
-		comparisons = slices.Delete(comparisons, 0, 1)
-
-		// insert newCmp in order
-		for i, cmp := range comparisons {
-			if newCmp.distance < cmp.distance {
-				comparisons = slices.Insert(comparisons, i, newCmp)
+		// now that connToAction has been processed, there are potentially two new closest connections (one from either end of the new connection)
+		newConnection1 := getClosestConnection(junctionBoxes[connToAction.loc1], junctionBoxes, allConnections)
+		// insert newConnection1 in order
+		for i, c := range allConnections.pending {
+			if newConnection1.distance < c.distance {
+				allConnections.pending = slices.Insert(allConnections.pending, i, newConnection1)
 				break
 			}
 		}
-
-		// fmt.Println("end iteration state:")
-		// printJunctionBoxes(allLocations, junctionBoxes)
-		// printComparisons(comparisons)
-		// printCircuits(allCircuits, circuitToLocation)
-		// fmt.Println("\n\n")
+		newConnection2 := getClosestConnection(junctionBoxes[connToAction.loc2], junctionBoxes, allConnections)
+		// insert newConnection2 in order
+		for i, c := range allConnections.pending {
+			if newConnection2.distance < c.distance {
+				allConnections.pending = slices.Insert(allConnections.pending, i, newConnection1)
+				break
+			}
+		}
 	}
-
-	// for circuit, locs := range circuitToLocation {
-	// 	fmt.Printf("circuit %s contains: %v\n", circuit, locs)
-	// }
 
 	// count up the largest circuits, do this by making a slice of sizes, sort, and math the first 3 elements
 	magnitudes := []int{}
@@ -181,37 +170,11 @@ func part1() {
 	fmt.Println("part 1:", magnitudes[0]*magnitudes[1]*magnitudes[2])
 }
 
-func printCircuits(allCircuits []string, cuircuitMap map[string][]location) {
-	if len(allCircuits) != len(cuircuitMap) { // sanity check
-		fmt.Println("len:", len(allCircuits), len(cuircuitMap))
-		fmt.Println("all:", allCircuits)
-		fmt.Println("map:", cuircuitMap)
-		panic("data error, circuits and mapping out of sync")
+func connectCircuits(locations []location, junctionBoxes map[location]junctionBox, circuit1, circuit2 string, cuircuitMap map[string][]location, allCircuits []string) ([]string, map[string][]location) {
+	// check if they are already connected and skip in that case
+	if circuit1 == circuit2 {
+		return allCircuits, cuircuitMap
 	}
-
-	fmt.Println("Circuits")
-	for _, circuit := range allCircuits {
-		fmt.Printf("%s: %v\n", circuit, cuircuitMap[circuit])
-	}
-}
-
-func printJunctionBoxes(allLocations []location, junctionBoxes map[location]junctionBox) {
-	fmt.Println("JunctionBoxes")
-	// note we iter over all locations to print instead of the map, so that we always see them in the same order (helps debugging)
-	for _, loc := range allLocations {
-		fmt.Printf("loc: (%3d,%3d,%3d) circuit: %s\n", loc.x, loc.y, loc.z, junctionBoxes[loc].circuit)
-	}
-}
-
-func printComparisons(comparisons []comparison) {
-	fmt.Println("Comparisons")
-	for _, cmp := range comparisons {
-		fmt.Printf("loc1: (%3d,%3d,%3d), loc2: (%3d,%3d,%3d), distance: %5.2f\n", cmp.loc1.x, cmp.loc1.y, cmp.loc1.z, cmp.loc2.x, cmp.loc2.y, cmp.loc2.z, cmp.distance)
-	}
-}
-
-func connectCircuits(locations []location, junctionBoxes map[location]junctionBox, circuit1, circuit2 string, cuircuitMap map[string][]location, allCircuits []string) []string {
-	// fmt.Printf("connecting circuit '%s' to '%s', the latter will be absorbed by the former\n", circuit1, circuit2)
 
 	oldCircuitLocations := cuircuitMap[circuit2]
 
@@ -236,21 +199,22 @@ func connectCircuits(locations []location, junctionBoxes map[location]junctionBo
 		}
 	}
 
-	return allCircuits
+	return allCircuits, cuircuitMap
 }
 
-// getComparison will generate a slice of comparison structs. It will give the closest distance for each of the startBoxes to all the endBoxes,
-// i.e. can be used to just generate one new comparsion when necessary.
-func getComparison(startBox junctionBox, endBoxes map[location]junctionBox) comparison {
+// getClosestConnection will give the closest connection to the startBox, while also filtering out connections to itself
+// or to previously found shortest connections that have already been handled
+func getClosestConnection(startBox junctionBox, endBoxes map[location]junctionBox, allConnections connections) connection {
 	var distance *float64
 	var loc1 location
 	var loc2 location
 
 	for _, endBox := range endBoxes {
-		if (startBox.loc == endBox.loc) || (startBox.circuit == endBox.circuit) {
-			// skip cases:
-			// - finding distance from ourselves
-			// - finding distance for two junction boxes already in the same circuit
+		// skip cases:
+		// - finding distance from ourselves
+		// - finding distance for two points that already have a pending or completed connection
+		// - DONT SKIP SAME CIRCUIT YET!!!
+		if (startBox.loc == endBox.loc) || isConnectionAlreadyHandled(startBox.loc, endBox.loc, allConnections) {
 			continue
 		}
 
@@ -262,11 +226,38 @@ func getComparison(startBox junctionBox, endBoxes map[location]junctionBox) comp
 		}
 	}
 
-	return comparison{
-		loc1:     loc1,
-		loc2:     loc2,
+	return connection{
+		loc1: loc1,
+		loc2: loc2,
+		// we might need to handle nil pointer in here if we run out of connections to find?
 		distance: *distance,
 	}
+}
+
+func isConnectionAlreadyHandled(loc1, loc2 location, allCoconnections connections) bool {
+	for _, conn := range allCoconnections.completed {
+		if (conn.loc1 == loc1 && conn.loc2 == loc2) || (conn.loc1 == loc2 && conn.loc2 == loc1) {
+			return true
+		}
+	}
+	for _, conn := range allCoconnections.pending {
+		if (conn.loc1 == loc1 && conn.loc2 == loc2) || (conn.loc1 == loc2 && conn.loc2 == loc1) {
+			return true
+		}
+	}
+	return false
+}
+
+func markConnectionActioned(conn connection, allConnections connections) connections {
+	for i, c := range allConnections.pending {
+		if (c.loc1 == conn.loc1 && c.loc2 == conn.loc2) || (c.loc2 == conn.loc1 && c.loc1 == conn.loc2) {
+			actionedConnection := allConnections.pending[i]
+			allConnections.completed = append(allConnections.completed, actionedConnection)
+			allConnections.pending = slices.Delete(allConnections.pending, i, i+1)
+			return allConnections
+		}
+	}
+	panic("logic error: tried to mark a connection actioned that wasn't even pending")
 }
 
 func part2() {
