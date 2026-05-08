@@ -7,22 +7,33 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 //go:embed sample.txt
 var input string
 
+const connectionsSample = 10
+const connectionsInput = 1000
+
 type comparison struct {
-	loc          location
-	closest      location
-	closestIndex int // the index of the
-	distance     float64
+	loc1     location
+	loc2     location
+	distance float64
 }
 
 type location struct {
 	x int
 	y int
 	z int
+}
+
+type junctionBox struct {
+	loc     location
+	circuit string // "" == individuial circuit
+	// nextClosest *location // pointer to differentiate between unset and set
+	// distance    *float64  // pointer to differentiate between unset and set, else default value of 0 will require special logic around it
 }
 
 func straightLineDistance(loc1, loc2 location) float64 {
@@ -32,9 +43,20 @@ func straightLineDistance(loc1, loc2 location) float64 {
 			math.Pow(float64(loc1.z-loc2.z), float64(2)))
 }
 
+// algorithm:
+// allLocations := list of the locations of juction boxes. this is necessary to iterate over all juction boxes, since they are being stored as a map (not true)
+// with
+//
+
 func part1() {
+	// we will make circuit labels against junctionBoxes to be uuids, and deterministicly generated to help
+	// the seed will be constructed from the location label
+	namespace := uuid.NameSpaceURL
+
 	// read input into a slice of locations
-	locationsFromInput := []location{}
+	allLocations := []location{}
+	// TODO: we are having loc as both key and a property on the junctionBox, might be handy but idk might delete
+	junctionBoxes := make(map[location]junctionBox)
 
 	lines := strings.Split(input, "\n")
 
@@ -60,31 +82,45 @@ func part1() {
 			panic(errs)
 		}
 
-		locationsFromInput = append(locationsFromInput, location{x: x, y: y, z: z})
+		loc := location{x: x, y: y, z: z}
+		junctionBoxes[loc] = junctionBox{
+			loc:     loc,
+			circuit: uuid.NewSHA1(namespace, []byte(fmt.Sprintf("%d,%d,%d", loc.x, loc.y, loc.z))).String(),
+		}
+
+		allLocations = append(allLocations, loc)
 	}
 
+	// first, begin by building up our starting list of comparisons
+	// for each location, find the closest location
 	comparisons := []comparison{}
 
-	// for each location, find the closest location
-	for _, assessLocation := range locationsFromInput {
-		cmp := comparison{
-			loc:      assessLocation,
-			distance: -1,
-		}
-		for j, candidateLocation := range locationsFromInput {
-			candidateDistance := straightLineDistance(assessLocation, candidateLocation)
-			if candidateDistance == 0 {
+	for _, junctionBox1 := range junctionBoxes {
+		var distance *float64
+		var loc1 location
+		var loc2 location
+
+		for _, junctionBox2 := range junctionBoxes {
+			if (junctionBox1.loc == junctionBox2.loc) || ((junctionBox1.circuit == junctionBox2.circuit) && (junctionBox1.circuit != "" && junctionBox2.circuit != "")) {
+				// skip cases:
+				// - finding distance from ourselves
+				// - finding distance for two junction boxes already in the same circuit
 				continue
 			}
 
-			if (candidateDistance != 0 && cmp.distance == -1) || candidateDistance < cmp.distance {
-				cmp.distance = candidateDistance
-				cmp.closest = candidateLocation
-				cmp.closestIndex = j
+			candidateDistance := straightLineDistance(junctionBox1.loc, junctionBox2.loc)
+			if distance == nil || candidateDistance < *distance {
+				distance = &candidateDistance
+				loc1 = junctionBox1.loc
+				loc2 = junctionBox2.loc
 			}
 		}
 
-		comparisons = append(comparisons, cmp)
+		comparisons = append(comparisons, comparison{
+			loc1:     loc1,
+			loc2:     loc2,
+			distance: *distance,
+		})
 	}
 
 	// sort in order of closest to furthest distance
@@ -92,74 +128,24 @@ func part1() {
 		return comparisons[i].distance < comparisons[j].distance
 	})
 
-	for _, cmp := range comparisons {
-		fmt.Println(cmp)
-	}
-
 	connections := 0
+	// Note: need to change this from connectionsSample (10) to connectionsInput (1000) when switching between sample.txt and input.txt as puzzle source
+	// - sample.txt: "After making the ten shortest connections" so we can check our output with the provided sample...
+	// - input.txt: 1000 connections as per instructions
+	for connections < connectionsSample {
+		fmt.Println("---")
+		// always start by looking at the closest comparison, since they are sorted from lowest to highest distance
+		cmp := comparisons[0]
 
-	circuits := [][]location{}
-	fmt.Println("---")
-	for _, cmp := range comparisons {
-		// Note: need to change this from 10 to 1000 when switching between sample.txt and input.txt as puzzle source
-		// - sample.txt: "After making the ten shortest connections" so we can check our output with the provided sample...
-		// - input.txt: 1000 connections as per instructions
-		if connections == 11 {
-			break
+		// is this comparison already covered by a circuit?
+		if junctionBoxes[cmp.loc1].circuit == junctionBoxes[cmp.loc2].circuit {
+			todo
+		} else { // not already covered by a circuit, make a new connection
+			todo
 		}
 
-		// check if the incoming points are already in a circuit or not (either the first or the second point might already be in a circuit must check both)
+		// Determine the next newest closet connection for this JunctionBox
 
-		cmpFound := false
-		cmpClosestFound := false
-		iDest := -1
-
-		for i, circuit := range circuits {
-			for _, loc := range circuit {
-				if loc == cmp.loc {
-					cmpFound = true
-					iDest = i
-				}
-
-				if loc == cmp.closest {
-					cmpClosestFound = true
-					iDest = i
-				}
-			}
-		}
-
-		if cmpFound && cmpClosestFound {
-			// if they are already in here, don't treat them as a connection, since its the same connection
-			continue
-		} else {
-			connections += 1
-
-			// if neither point was found in a circuit, then add them both to a new circuit
-			if !cmpFound && !cmpClosestFound {
-				circuits = append(circuits, []location{cmp.loc, cmp.closest})
-			}
-
-			if cmpFound && !cmpClosestFound {
-				circuits[iDest] = append(circuits[iDest], cmp.closest)
-			}
-
-			if !cmpFound && cmpClosestFound {
-				circuits[iDest] = append(circuits[iDest], cmp.loc)
-			}
-		}
-
-		fmt.Println("\ncircuits after processing cmp", cmp)
-		for _, circuit := range circuits {
-			fmt.Println(circuit)
-		}
-		fmt.Println("connections:", connections)
-
-	}
-
-	// for debug, to remove
-	fmt.Println("end circuits:")
-	for _, circuit := range circuits {
-		fmt.Println(circuit)
 	}
 }
 
