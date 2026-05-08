@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-//go:embed sample.txt
+//go:embed input.txt
 var input string
 
 const connectionsSample = 10
@@ -124,7 +124,8 @@ func part1() {
 	// Note: need to change this from connectionsSample (10) to connectionsInput (1000) when switching between sample.txt and input.txt as puzzle source
 	// - sample.txt: "After making the ten shortest connections" so we can check our output with the provided sample...
 	// - input.txt: 1000 connections as per instructions
-	for connectionCount < connectionsSample {
+	// for connectionCount < connectionsSample {
+	for connectionCount < connectionsInput {
 		// always start by looking at the closest comparison, since they are sorted from lowest to highest distance
 		connToAction := allConnections.pending[0]
 		allCircuits, circuitToLocation = connectCircuits(allLocations, junctionBoxes, junctionBoxes[connToAction.loc1].circuit, junctionBoxes[connToAction.loc2].circuit, circuitToLocation, allCircuits)
@@ -144,7 +145,7 @@ func part1() {
 		// insert newConnection2 in order
 		for i, c := range allConnections.pending {
 			if newConnection2.distance < c.distance {
-				allConnections.pending = slices.Insert(allConnections.pending, i, newConnection1)
+				allConnections.pending = slices.Insert(allConnections.pending, i, newConnection2)
 				break
 			}
 		}
