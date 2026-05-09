@@ -15,6 +15,7 @@ import (
 //go:embed input.txt
 var input string
 
+// these are for part 1 only
 const connectionsSample = 10
 const connectionsInput = 1000
 
@@ -48,8 +49,64 @@ func straightLineDistance(loc1, loc2 location) float64 {
 }
 
 func part1() {
-	// we will make circuit labels against junctionBoxes to be uuids, and deterministicly generated to help
-	// the seed will be constructed from the location label
+	allLocations, allCircuits, junctionBoxes, circuitToLocation, allConnections := initialiseFromInput()
+
+	connectionCount := 0
+	// Note: need to change this from connectionsSample (10) to connectionsInput (1000) when switching between sample.txt and input.txt as puzzle source
+	// - sample.txt: "After making the ten shortest connections" so we can check our output with the provided sample...
+	// - input.txt: 1000 connections as per instructions
+	// for connectionCount < connectionsSample {
+	for connectionCount < connectionsInput {
+		// always start by looking at the closest comparison, since they are sorted from lowest to highest distance
+		connToAction := allConnections.pending[0]
+		allCircuits, circuitToLocation = connectCircuits(allLocations, junctionBoxes, junctionBoxes[connToAction.loc1].circuit, junctionBoxes[connToAction.loc2].circuit, circuitToLocation, allCircuits)
+		allConnections = markConnectionActioned(connToAction, allConnections)
+		connectionCount += 1
+
+		// now that connToAction has been processed, there are potentially two new closest connections (one from either end of the new connection)
+		newConnection1 := getClosestConnection(junctionBoxes[connToAction.loc1], junctionBoxes, allConnections)
+		if newConnection1 != nil {
+			// insert newConnection1 in order
+			for i, c := range allConnections.pending {
+				if newConnection1.distance < c.distance {
+					allConnections.pending = slices.Insert(allConnections.pending, i, *newConnection1)
+					break
+				}
+			}
+		}
+		newConnection2 := getClosestConnection(junctionBoxes[connToAction.loc2], junctionBoxes, allConnections)
+		if newConnection2 != nil {
+			// insert newConnection2 in order
+			for i, c := range allConnections.pending {
+				if newConnection2.distance < c.distance {
+					allConnections.pending = slices.Insert(allConnections.pending, i, *newConnection2)
+					break
+				}
+			}
+		}
+	}
+
+	// count up the largest circuits, do this by making a slice of sizes, sort, and math the first 3 elements
+	magnitudes := []int{}
+	for _, locations := range circuitToLocation {
+		magnitude := len(locations)
+		inserted := false
+		for i := range magnitudes {
+			if magnitude > magnitudes[i] {
+				magnitudes = slices.Insert(magnitudes, i, magnitude)
+				inserted = true
+				break
+			}
+		}
+		if !inserted {
+			magnitudes = append(magnitudes, magnitude)
+		}
+	}
+
+	fmt.Println("part 1:", magnitudes[0]*magnitudes[1]*magnitudes[2])
+}
+
+func initialiseFromInput() ([]location, []string, map[location]junctionBox, map[string][]location, connections) {
 	namespace := uuid.NameSpaceURL
 
 	// read input into a slice of locations
@@ -91,6 +148,8 @@ func part1() {
 
 		allLocations = append(allLocations, loc)
 
+		// we will make circuit labels against junctionBoxes to be uuids, and deterministicly generated to help
+		// the seed will be constructed from the location label
 		circuitName := uuid.NewSHA1(namespace, []byte(fmt.Sprintf("%d,%d,%d", loc.x, loc.y, loc.z))).String()[:7]
 
 		allCircuits = append(allCircuits, circuitName)
@@ -112,63 +171,16 @@ func part1() {
 	// for each location, find the closest connection
 	for _, junctionBox := range junctionBoxes {
 		con := getClosestConnection(junctionBox, junctionBoxes, allConnections)
-		allConnections.pending = append(allConnections.pending, con)
+		if con != nil {
+			allConnections.pending = append(allConnections.pending, *con)
+		}
 	}
 
 	// sort in order of closest to furthest distance
 	sort.Slice(allConnections.pending, func(i, j int) bool {
 		return allConnections.pending[i].distance < allConnections.pending[j].distance
 	})
-
-	connectionCount := 0
-	// Note: need to change this from connectionsSample (10) to connectionsInput (1000) when switching between sample.txt and input.txt as puzzle source
-	// - sample.txt: "After making the ten shortest connections" so we can check our output with the provided sample...
-	// - input.txt: 1000 connections as per instructions
-	// for connectionCount < connectionsSample {
-	for connectionCount < connectionsInput {
-		// always start by looking at the closest comparison, since they are sorted from lowest to highest distance
-		connToAction := allConnections.pending[0]
-		allCircuits, circuitToLocation = connectCircuits(allLocations, junctionBoxes, junctionBoxes[connToAction.loc1].circuit, junctionBoxes[connToAction.loc2].circuit, circuitToLocation, allCircuits)
-		allConnections = markConnectionActioned(connToAction, allConnections)
-		connectionCount += 1
-
-		// now that connToAction has been processed, there are potentially two new closest connections (one from either end of the new connection)
-		newConnection1 := getClosestConnection(junctionBoxes[connToAction.loc1], junctionBoxes, allConnections)
-		// insert newConnection1 in order
-		for i, c := range allConnections.pending {
-			if newConnection1.distance < c.distance {
-				allConnections.pending = slices.Insert(allConnections.pending, i, newConnection1)
-				break
-			}
-		}
-		newConnection2 := getClosestConnection(junctionBoxes[connToAction.loc2], junctionBoxes, allConnections)
-		// insert newConnection2 in order
-		for i, c := range allConnections.pending {
-			if newConnection2.distance < c.distance {
-				allConnections.pending = slices.Insert(allConnections.pending, i, newConnection2)
-				break
-			}
-		}
-	}
-
-	// count up the largest circuits, do this by making a slice of sizes, sort, and math the first 3 elements
-	magnitudes := []int{}
-	for _, locations := range circuitToLocation {
-		magnitude := len(locations)
-		inserted := false
-		for i := range magnitudes {
-			if magnitude > magnitudes[i] {
-				magnitudes = slices.Insert(magnitudes, i, magnitude)
-				inserted = true
-				break
-			}
-		}
-		if !inserted {
-			magnitudes = append(magnitudes, magnitude)
-		}
-	}
-
-	fmt.Println("part 1:", magnitudes[0]*magnitudes[1]*magnitudes[2])
+	return allLocations, allCircuits, junctionBoxes, circuitToLocation, allConnections
 }
 
 func connectCircuits(locations []location, junctionBoxes map[location]junctionBox, circuit1, circuit2 string, cuircuitMap map[string][]location, allCircuits []string) ([]string, map[string][]location) {
@@ -205,7 +217,7 @@ func connectCircuits(locations []location, junctionBoxes map[location]junctionBo
 
 // getClosestConnection will give the closest connection to the startBox, while also filtering out connections to itself
 // or to previously found shortest connections that have already been handled
-func getClosestConnection(startBox junctionBox, endBoxes map[location]junctionBox, allConnections connections) connection {
+func getClosestConnection(startBox junctionBox, endBoxes map[location]junctionBox, allConnections connections) *connection {
 	var distance *float64
 	var loc1 location
 	var loc2 location
@@ -227,10 +239,14 @@ func getClosestConnection(startBox junctionBox, endBoxes map[location]junctionBo
 		}
 	}
 
-	return connection{
-		loc1: loc1,
-		loc2: loc2,
-		// we might need to handle nil pointer in here if we run out of connections to find?
+	// eventually we will potentially exhaust all connections, so we need to differentiate set vs unset
+	if distance == nil {
+		return nil
+	}
+
+	return &connection{
+		loc1:     loc1,
+		loc2:     loc2,
 		distance: *distance,
 	}
 }
