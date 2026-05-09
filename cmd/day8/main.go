@@ -278,9 +278,58 @@ func markConnectionActioned(conn connection, allConnections connections) connect
 }
 
 func part2() {
+	allLocations, allCircuits, junctionBoxes, circuitToLocation, allConnections := initialiseFromInput()
+
+	// keep iterating until all junction boxes are in a single circuit
+	for len(allCircuits) > 1 {
+		// always start by looking at the closest comparison, since they are sorted from lowest to highest distance
+		connToAction := allConnections.pending[0]
+		allCircuits, circuitToLocation = connectCircuits(allLocations, junctionBoxes, junctionBoxes[connToAction.loc1].circuit, junctionBoxes[connToAction.loc2].circuit, circuitToLocation, allCircuits)
+		allConnections = markConnectionActioned(connToAction, allConnections)
+
+		// now that connToAction has been processed, there are potentially two new closest connections (one from either end of the new connection)
+		newConnection1 := getClosestConnection(junctionBoxes[connToAction.loc1], junctionBoxes, allConnections)
+		if newConnection1 != nil {
+			// insert newConnection1 in order
+			for i, c := range allConnections.pending {
+				if newConnection1.distance < c.distance {
+					allConnections.pending = slices.Insert(allConnections.pending, i, *newConnection1)
+					break
+				}
+			}
+		}
+		newConnection2 := getClosestConnection(junctionBoxes[connToAction.loc2], junctionBoxes, allConnections)
+		if newConnection2 != nil {
+			// insert newConnection2 in order
+			for i, c := range allConnections.pending {
+				if newConnection2.distance < c.distance {
+					allConnections.pending = slices.Insert(allConnections.pending, i, *newConnection2)
+					break
+				}
+			}
+		}
+	}
+
+	// then multiply the x coords of the final actioned connection
+	lastActionedConnection := allConnections.completed[len(allConnections.completed)-1]
+	fmt.Println("part 2:", lastActionedConnection.loc1.x*lastActionedConnection.loc2.x)
 }
 
 func main() {
 	part1()
 	part2()
+	// Algo can definitely be improved, check out this benchmark lol.
+	// But given how long i spent on part 1 for this one, thats a task for another day.
+
+	// $ go test ./cmd/day8/... -bench=. -benchmem -run=^$ -count=1
+	// part 1: 121770
+	// goos: linux
+	// goarch: amd64
+	// pkg: advent-of-code-2025/cmd/day8
+	// cpu: AMD Ryzen 7 7800X3D 8-Core Processor
+	// BenchmarkPart1-16    	       1	4975471165 ns/op	25644008 B/op	 3001670 allocs/op
+	// part 2: 7893123992
+	// BenchmarkPart2-16    	       1	64525229771 ns/op	103741520 B/op	12220675 allocs/op
+	// PASS
+	// ok  	advent-of-code-2025/cmd/day8	69.504s
 }

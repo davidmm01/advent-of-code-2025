@@ -7,6 +7,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func BenchmarkPart1(b *testing.B) {
+	for range b.N {
+		part1()
+	}
+}
+
+func BenchmarkPart2(b *testing.B) {
+	for range b.N {
+		part2()
+	}
+}
+
 func Test_straightLineDistance(t *testing.T) {
 	tests := []struct {
 		loc1     location
