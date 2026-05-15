@@ -110,3 +110,45 @@ func Test_getRowMinMax(t *testing.T) {
 		})
 	}
 }
+
+func Test_getOtherCornersOfSquare(t *testing.T) {
+	tests := []struct {
+		loc1               location
+		loc2               location
+		expectedNewCorner1 location
+		expectedNewCorner2 location
+	}{
+		{
+			loc1:               location{row: 9, column: 5},
+			loc2:               location{row: 11, column: 7},
+			expectedNewCorner1: location{row: 9, column: 7},
+			expectedNewCorner2: location{row: 11, column: 5},
+		},
+		{
+			loc1:               location{row: 1, column: 1},
+			loc2:               location{row: 2, column: 2},
+			expectedNewCorner1: location{row: 1, column: 2},
+			expectedNewCorner2: location{row: 2, column: 1},
+		},
+		{
+			loc1:               location{row: 1, column: 9},
+			loc2:               location{row: 1, column: 10},
+			expectedNewCorner1: location{row: 1, column: 10},
+			expectedNewCorner2: location{row: 1, column: 9},
+		},
+		{
+			loc1:               location{row: 1, column: 8},
+			loc2:               location{row: 2, column: 8},
+			expectedNewCorner1: location{row: 1, column: 8},
+			expectedNewCorner2: location{row: 2, column: 8},
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("test case %d", i), func(t *testing.T) {
+			actualNewCorner1, actualNewCorner2 := getOtherCornersOfSquare(tt.loc1, tt.loc2)
+			assert.Equal(t, tt.expectedNewCorner1, actualNewCorner1)
+			assert.Equal(t, tt.expectedNewCorner2, actualNewCorner2)
+		})
+	}
+}

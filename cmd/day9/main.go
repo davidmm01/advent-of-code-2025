@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-//go:embed sample.txt
+//go:embed input.txt
 var input string
 
 type location struct {
@@ -181,7 +181,7 @@ func part2() {
 	// repeat until done.
 
 	allLocations := []location{}
-	// colRedTiles/yRedTiles helps us easily access the red tiles for any given column or row
+	// colRedTiles/rowRedTiles helps us easily access the red tiles for any given column or row
 	colRedTiles := make(map[int][]location)
 	rowRedTiles := make(map[int][]location)
 	tileMap := make(map[location]int)
@@ -223,25 +223,104 @@ func part2() {
 		applyGreenTileRowBoundary(rowMin, rowMax, tileMap)
 	}
 
-	// lets see what drawing the boundary looks like, we might be able to have some simple rule to describe that tells us
-	// if we are in the boundary or not
-
-	// for rowNo, xRedTiles := range xRedTiles {
-	// 	// only when there are atleast 2 red tiles on a column can we draw the boundaries
-	// 	if len(xRedTiles) < 2 {
-	// 		break
-	// 	}
-
-	// }
-
 	// for any calculated square we can check if it is inside the boundary by:
 	// - is one of the other two corners also a red tile?
 	// - is the other corner inside the boundary? (are there any green tiles beyond it?)
 	// - if both these hold true, we know it is in the boundary
 
-	printTileMap(tileMap)
+	// printTileMap(tileMap)
 	// This looks good. But we should actually be saving the min and max per row for easy access,
-	// we dont have to want to go iterating and searching for it.
+	// we dont have to want to go iterating and searching for it. - too hard? too many data points potentially
+	currentBiggest := 0
+	for _, loc1 := range allLocations {
+		for _, loc2 := range allLocations {
+			candidateSize := squareSize(loc1, loc2)
+			// if this square is potentially the biggest to fit...
+			if candidateSize > currentBiggest {
+				otherCorner1, otherCorner2 := getOtherCornersOfSquare(loc1, loc2)
+
+				val1, ok1 := tileMap[otherCorner1]
+				val2, ok2 := tileMap[otherCorner2]
+
+				if (ok1 && val1 == red && isCornerInTileCluster(otherCorner2, tileMap)) || (ok2 && val2 == red && isCornerInTileCluster(otherCorner1, tileMap)) {
+					currentBiggest = candidateSize
+				}
+			}
+		}
+	}
+
+	fmt.Println("part 2:", currentBiggest)
+}
+
+func isCornerInTileCluster(loc location, tileMap map[location]int) bool {
+	// if the corner falls directly on our boundary, then we know its all good!
+	_, ok := tileMap[loc]
+	if ok {
+		return true
+	}
+	// otherwise its not on a boundary, lets check if going up, down, left, right we hit a tile
+
+	// check up
+	upFound := false
+	for checkRow := loc.row - 1; checkRow >= rowMin; checkRow-- {
+		checkLoc := location{row: checkRow, column: loc.column}
+		_, ok := tileMap[checkLoc]
+		if ok {
+			upFound = true // exit early whenever we can
+			break
+		}
+	}
+	if !upFound { // exit early whenever we can
+		return false
+	}
+
+	// check down
+	downFound := false
+	for checkRow := loc.row + 1; checkRow <= rowMax; checkRow++ {
+		checkLoc := location{row: checkRow, column: loc.column}
+		_, ok := tileMap[checkLoc]
+		if ok {
+			downFound = true // exit early whenever we can
+			break
+		}
+	}
+	if !downFound { // exit early whenever we can
+		return false
+	}
+
+	// check left
+	leftFound := false
+	for checkCol := loc.column - 1; checkCol >= columnMin; checkCol-- {
+		checkLoc := location{row: loc.row, column: checkCol}
+		_, ok := tileMap[checkLoc]
+		if ok {
+			leftFound = true // exit early whenever we can
+			break
+		}
+	}
+	if !leftFound { // exit early whenever we can
+		return false
+	}
+
+	// check right
+	rightFound := false
+	for checkCol := loc.column + 1; checkCol <= columnMax; checkCol++ {
+		checkLoc := location{row: loc.row, column: checkCol}
+		_, ok := tileMap[checkLoc]
+		if ok {
+			rightFound = true // exit early whenever we can
+			break
+		}
+	}
+	if !rightFound { // exit early whenever we can
+		return false
+	}
+
+	return true
+}
+
+func getOtherCornersOfSquare(loc1, loc2 location) (location, location) {
+	return location{row: loc1.row, column: loc2.column}, location{row: loc2.row, column: loc1.column}
 }
 
 // printTileMap is just for use with the sample input to visually confirm i am doing what
