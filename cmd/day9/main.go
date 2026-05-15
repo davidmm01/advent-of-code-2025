@@ -316,6 +316,12 @@ func isCornerInTileCluster(loc location, tileMap map[location]int) bool {
 		return false
 	}
 
+	// looking at google and claude, my approach is just so wrong.
+	// I learned about ray casting, which would be a much better way to check if i am inside a boundary or not.
+	// however my idea of using the corners to check if im in a boundary is also wrong, it wont account for certain cases where an closed area looks like a U.
+	// some good go solutions i saw online instead build up a polygon with edges, and then check if the edges are inside the polygons.
+	// I'm going to park this question for a bit, and come back to it with a clearer head.
+
 	return true
 }
 
